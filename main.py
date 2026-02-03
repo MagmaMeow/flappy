@@ -1,92 +1,97 @@
-import pygame
-import sys
+import tkinter as tk
 import random
 
-pygame.init()
-
 WIDTH, HEIGHT = 400, 600
-SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-CLOCK = pygame.time.Clock()
-
-GRAVITY = 0.5
-BIRD_JUMP = -10
-PIPE_SPEED = 3
+GRAVITY = 2
+BIRD_JUMP = -20
+PIPE_SPEED = 5
 PIPE_GAP = 150
 
 class Bird:
-    def __init__(self):
-        self.image = pygame.Surface((34, 24))
-        self.image.fill((255, 255, 0))
-        self.rect = self.image.get_rect(center=(50, HEIGHT // 2))
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.y = HEIGHT // 2
         self.velocity = 0
+        self.shape = canvas.create_oval(50, self.y, 80, self.y+30, fill="yellow")
 
     def update(self):
         self.velocity += GRAVITY
-        self.rect.y += self.velocity
+        self.y += self.velocity
+        self.canvas.coords(self.shape, 50, self.y, 80, self.y+30)
 
-    def jump(self):
+    def jump(self, event=None):
         self.velocity = BIRD_JUMP
 
-    def draw(self):
-        SCREEN.blit(self.image, self.rect)
-
 class Pipe:
-    def __init__(self, x):
+    def __init__(self, canvas, x):
+        self.canvas = canvas
         self.height = random.randint(100, HEIGHT - PIPE_GAP - 100)
-        self.top_rect = pygame.Rect(x, 0, 50, self.height)
-        self.bottom_rect = pygame.Rect(x, self.height + PIPE_GAP, 50, HEIGHT - self.height - PIPE_GAP)
+        self.top = canvas.create_rectangle(x, 0, x+50, self.height, fill="green")
+        self.bottom = canvas.create_rectangle(x, self.height+PIPE_GAP, x+50, HEIGHT, fill="green")
+        self.x = x
 
     def update(self):
-        self.top_rect.x -= PIPE_SPEED
-        self.bottom_rect.x -= PIPE_SPEED
+        self.x -= PIPE_SPEED
+        self.canvas.move(self.top, -PIPE_SPEED, 0)
+        self.canvas.move(self.bottom, -PIPE_SPEED, 0)
 
-    def draw(self):
-        pygame.draw.rect(SCREEN, (0, 255, 0), self.top_rect)
-        pygame.draw.rect(SCREEN, (0, 255, 0), self.bottom_rect)
+    def collides(self, bird):
+        bx1, by1, bx2, by2 = bird.canvas.coords(bird.shape)
+        px1, py1, px2, py2 = self.canvas.coords(self.top)
+        qx1, qy1, qx2, qy2 = self.canvas.coords(self.bottom)
+
+        # Collision check
+        if bx2 > px1 and bx1 < px2 and by1 < py2:
+            return True
+        if bx2 > qx1 and bx1 < qx2 and by2 > qy1:
+            return True
+        return False
 
 def main():
-    bird = Bird()
-    pipes = [Pipe(WIDTH + 100)]
-    score = 0
-    font = pygame.font.SysFont(None, 36)
+    root = tk.Tk()
+    root.title("Flappy Bird (Tkinter)")
+    canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg="skyblue")
+    canvas.pack()
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                bird.jump()
+    bird = Bird(canvas)
+    pipes = [Pipe(canvas, WIDTH)]
+    score = 0
+    score_text = canvas.create_text(WIDTH//2, 20, text="0", font=("Arial", 24), fill="white")
+
+    def game_loop():
+        nonlocal score, pipes
 
         bird.update()
 
-        if pipes[-1].top_rect.x < WIDTH - 200:
-            pipes.append(Pipe(WIDTH + 100))
+        
+        if pipes[-1].x < WIDTH - 200:
+            pipes.append(Pipe(canvas, WIDTH))
 
+        
         for pipe in pipes:
             pipe.update()
 
-        pipes = [pipe for pipe in pipes if pipe.top_rect.x > -50]
+       
+        pipes = [p for p in pipes if p.x > -50]
 
+       
         for pipe in pipes:
-            if bird.rect.colliderect(pipe.top_rect) or bird.rect.colliderect(pipe.bottom_rect):
-                pygame.quit()
-                sys.exit()
+            if pipe.collides(bird):
+                canvas.itemconfig(score_text, text="Game Over!")
+                return
 
-        if bird.rect.top <= 0 or bird.rect.bottom >= HEIGHT:
-            pygame.quit()
-            sys.exit()
+        if bird.y <= 0 or bird.y >= HEIGHT:
+            canvas.itemconfig(score_text, text="Game Over!")
+            return
 
-        SCREEN.fill((135, 206, 235))
-        bird.draw()
-        for pipe in pipes:
-            pipe.draw()
+        score += 1
+        canvas.itemconfig(score_text, text=str(score))
 
-        score_text = font.render(str(score), True, (255, 255, 255))
-        SCREEN.blit(score_text, (WIDTH // 2, 20))
+        root.after(50, game_loop)
 
-        pygame.display.flip()
-        CLOCK.tick(60)
+    root.bind("<space>", bird.jump)
+    game_loop()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
